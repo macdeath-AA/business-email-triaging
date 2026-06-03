@@ -1,25 +1,49 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { inbox } from './data.js'
-import { toolDefinitions, executeTool } from './tools.js'
+import { inbox, customersRaw, marshallNotes, servicesDoc } from './data.js'
 
 const anthropic = new Anthropic()
 
-const SYSTEM_PROMPT = `You are an email triage assistant for Possum Patrol, a pest control company in Chattanooga, TN run by Skye (founder Marshall's daughter).
+// All three documents are static across every request — one cache breakpoint at
+// the end covers the entire prefix. After the first email in a batch, Haiku
+// reuses the cached tokens for the remaining nine calls.
+const SYSTEM = [
+  {
+    type: 'text',
+    text: `You are an email triage assistant for Possum Patrol, a wildlife and pest \
+control company in Chattanooga, TN run by Skye (daughter of founder Marshall).
 
-For each email:
-1. Call lookup_customer to check if the sender is in the database.
-2. Call check_vip_status to check Marshall's notes for VIP or blocklist entries.
-3. Optionally call get_services if the service type is relevant to classification.
-4. Call submit_triage with your final classification.
+You have three reference documents below. Use them to classify each email.
 
-Category definitions:
-- Emergency: active/live pest situation requiring same-day response (animal in home NOW, health inspection imminent, family can't enter/exit, etc.)
-- Quote: customer asking for pricing or an estimate with no immediate crisis
-- VIP: known high-value or long-standing customer per Marshall's notes — even routine requests get elevated
-- Vendor: supplier, business partner, or service provider (traps vendor, insurance, truck shop, etc.)
-- Spam: unsolicited sales, marketing, or clearly off-topic emails`
+Categories:
+- Emergency: live/active pest situation needing same-day response (animal in the \
+building right now, health inspection today, occupants blocked from entering/exiting, etc.)
+- Quote: asking for pricing or an estimate with no immediate crisis
+- VIP: sender is listed as VIP in Marshall's notes — elevate even for routine requests
+- Vendor: supplier, equipment rep, insurance, truck shop, or business service provider
+- Spam: unsolicited sales, marketing, wrong-number emails, or clearly off-topic
 
-const submitTriageTool = {
+Set is_vip=true whenever the sender appears in Marshall's VIP section, regardless \
+of category (a VIP customer with an Emergency is Emergency + is_vip=true).
+
+Check the blocklist — if the sender is on it, classify as Spam and note it.`,
+  },
+  {
+    type: 'text',
+    text: `=== MARSHALL'S NOTES ===\n\n${marshallNotes}`,
+  },
+  {
+    type: 'text',
+    text: `=== CUSTOMER DATABASE ===\n\n${customersRaw}`,
+  },
+  {
+    type: 'text',
+    text: `=== SERVICES & PRICING ===\n\n${servicesDoc}`,
+    cache_control: { type: 'ephemeral' }, // cache the entire prefix up to here
+  },
+]
+
+// The tool definition is also static — cache it too.
+const SUBMIT_TRIAGE = {
   name: 'submit_triage',
   description: 'Submit the final triage classification for this email.',
   input_schema: {
@@ -27,65 +51,53 @@ const submitTriageTool = {
     properties: {
       category: {
         type: 'string',
-        enum: ['Emergency', 'Quote', 'VIP', 'Vendor', 'Spam']
+        enum: ['Emergency', 'Quote', 'VIP', 'Vendor', 'Spam'],
       },
       is_vip: {
         type: 'boolean',
-        description: "True if the sender is a known VIP customer per Marshall's notes"
-      }
+        description: "True if the sender is listed as VIP in Marshall's notes",
+      },
     },
-    required: ['category', 'is_vip']
-  }
+    required: ['category', 'is_vip'],
+  },
+  cache_control: { type: 'ephemeral' },
 }
 
-const allTools = [...toolDefinitions, submitTriageTool]
-
 async function triageEmail(email) {
-  const userMessage = `Triage this email:
-
-From: ${email.from.name} <${email.from.email}>
+  const response = await anthropic.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 512,
+    system: SYSTEM,
+    tools: [SUBMIT_TRIAGE],
+    tool_choice: { type: 'tool', name: 'submit_triage' }, // one call, no loop
+    messages: [
+      {
+        role: 'user',
+        content: `From: ${email.from.name} <${email.from.email}>
 Subject: ${email.subject}
 Received: ${email.received_at}
 
-${email.body}`
+${email.body}`,
+      },
+    ],
+  })
 
-  const messages = [{ role: 'user', content: userMessage }]
-
-  while (true) {
-    const response = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 512,
-      system: SYSTEM_PROMPT,
-      tools: allTools,
-      messages
-    })
-
-    messages.push({ role: 'assistant', content: response.content })
-
-    if (response.stop_reason === 'tool_use') {
-      const toolUses = response.content.filter(b => b.type === 'tool_use')
-
-      const submitCall = toolUses.find(t => t.name === 'submit_triage')
-      if (submitCall) {
-        return { email_id: email.id, ...submitCall.input }
-      }
-
-      const toolResults = toolUses.map(toolUse => ({
-        type: 'tool_result',
-        tool_use_id: toolUse.id,
-        content: executeTool(toolUse.name, toolUse.input)
-      }))
-      messages.push({ role: 'user', content: toolResults })
-      continue
-    }
-
-    return { email_id: email.id, error: 'Claude did not call submit_triage', stop_reason: response.stop_reason }
+  const call = response.content.find(b => b.type === 'tool_use' && b.name === 'submit_triage')
+  if (!call) {
+    return { email_id: email.id, error: 'no submit_triage call', stop_reason: response.stop_reason }
   }
+
+  const usage = response.usage
+  console.log(
+    `  tokens — in:${usage.input_tokens} (cached:${usage.cache_read_input_tokens ?? 0}) out:${usage.output_tokens}`
+  )
+
+  return { email_id: email.id, ...call.input }
 }
 
 export async function* triageEmails() {
   for (const email of inbox.slice(0, 10)) {
-    console.log(`Triaging ${email.id}: "${email.subject}"`)
+    console.log(`\nTriaging ${email.id}: "${email.subject}"`)
     const result = await triageEmail(email)
     const full = {
       ...result,
