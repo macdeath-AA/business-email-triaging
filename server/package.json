@@ -4,11 +4,13 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "dev": "node --watch src/index.js",
-    "start": "node src/index.js"
+    "dev": "node --env-file=.env.example --watch src/index.js",
+    "start": "node --env-file=.env.example src/index.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.30.0",
     "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
     "express": "^4.18.2"
   }
 }
