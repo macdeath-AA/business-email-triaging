@@ -1,6 +1,7 @@
 import express from 'express'
 import cors from 'cors'
 import { triageEmails } from './triage.js'
+import { draftReply } from './draft.js'
 
 const app = express()
 const PORT = 3001
@@ -28,6 +29,20 @@ app.get('/api/triage', async (req, res) => {
   }
 
   res.end()
+})
+
+app.post('/api/draft', async (req, res) => {
+  const { email, category } = req.body ?? {}
+  if (!email || !category) {
+    return res.status(400).json({ error: 'email and category are required' })
+  }
+  try {
+    const draft = await draftReply({ email, category })
+    res.json(draft)
+  } catch (err) {
+    console.error('Draft error:', err)
+    res.status(500).json({ error: err.message })
+  }
 })
 
 app.listen(PORT, () => {
