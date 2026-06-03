@@ -55,7 +55,17 @@ const SUBMIT_DRAFT = {
   cache_control: { type: 'ephemeral' },
 }
 
-export async function draftReply({ email, category }) {
+export async function draftReply({ email, category, insight_card }) {
+  const insightContext = insight_card
+    ? `\n\nInsight card (use this to make the reply concrete):\n` +
+      `Animal: ${insight_card.animal_type}\n` +
+      `Service: ${insight_card.recommended_service}\n` +
+      `Price: ${insight_card.price_range}\n` +
+      (insight_card.discounts     ? `Discounts: ${insight_card.discounts}\n`      : '') +
+      (insight_card.seasonal_notes ? `Seasonal: ${insight_card.seasonal_notes}\n` : '') +
+      `Urgent: ${insight_card.urgency_flag ? 'yes' : 'no'}`
+    : ''
+
   const response = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 1024,
@@ -65,7 +75,7 @@ export async function draftReply({ email, category }) {
     messages: [
       {
         role: 'user',
-        content: `Write a reply to this email. Triage category: ${category}
+        content: `Write a reply to this email. Triage category: ${category}${insightContext}
 
 From: ${email.from.name} <${email.from.email}>
 Subject: ${email.subject}

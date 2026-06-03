@@ -2,6 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import { triageEmails } from './triage.js'
 import { draftReply } from './draft.js'
+import { generateQuote } from './quote.js'
 
 const app = express()
 const PORT = 3001
@@ -31,13 +32,27 @@ app.get('/api/triage', async (req, res) => {
   res.end()
 })
 
-app.post('/api/draft', async (req, res) => {
+app.post('/api/quote', async (req, res) => {
   const { email, category } = req.body ?? {}
   if (!email || !category) {
     return res.status(400).json({ error: 'email and category are required' })
   }
   try {
-    const draft = await draftReply({ email, category })
+    const insight = await generateQuote({ email, category })
+    res.json(insight)
+  } catch (err) {
+    console.error('Quote error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.post('/api/draft', async (req, res) => {
+  const { email, category, insight_card } = req.body ?? {}
+  if (!email || !category) {
+    return res.status(400).json({ error: 'email and category are required' })
+  }
+  try {
+    const draft = await draftReply({ email, category, insight_card: insight_card ?? null })
     res.json(draft)
   } catch (err) {
     console.error('Draft error:', err)
