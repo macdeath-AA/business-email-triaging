@@ -27,6 +27,7 @@ export default function App() {
   const [drafts, setDrafts]           = useState({})
   const [draftingIds, setDraftingIds] = useState({})
   const [draftErrors, setDraftErrors] = useState({})
+  const [sentIds, setSentIds]         = useState({})
 
   const [quotes, setQuotes]           = useState({})
   const [quotingIds, setQuotingIds]   = useState({})
@@ -108,6 +109,10 @@ export default function App() {
     setDrafts(prev => ({ ...prev, [emailId]: { ...prev[emailId], [field]: value } }))
   }
 
+  function markSent(emailId) {
+    setSentIds(prev => ({ ...prev, [emailId]: true }))
+  }
+
   // ── Filtering ──────────────────────────────────────────────────────────
   const inTab = (email, tab) => {
     if (tab === 'All') return true
@@ -118,6 +123,7 @@ export default function App() {
   const countFor = (tab) => emails.filter(e => inTab(e, tab)).length
   const filtered  = emails.filter(e => inTab(e, activeTab))
   const selectedEmail = emails.find(e => e.email_id === selectedId) ?? null
+  const readyToSend = emails.filter(e => drafts[e.email_id] && !sentIds[e.email_id])
 
   return (
     <div className="app">
@@ -155,6 +161,29 @@ export default function App() {
               </button>
             ))}
           </nav>
+
+          <div className="sidebar-rts">
+            <div className="sidebar-rts-header">
+              <span>Ready to Send</span>
+              {readyToSend.length > 0 && (
+                <span className="sidebar-rts-count">{readyToSend.length}</span>
+              )}
+            </div>
+            {readyToSend.length === 0 ? (
+              <div className="sidebar-rts-empty">No drafts yet</div>
+            ) : (
+              readyToSend.map(email => (
+                <button
+                  key={email.email_id}
+                  className={`sidebar-rts-item${selectedId === email.email_id ? ' sidebar-rts-item--active' : ''}`}
+                  onClick={() => setSelectedId(email.email_id)}
+                >
+                  <span className="sidebar-rts-name">{email.from?.name}</span>
+                  <span className="sidebar-rts-subj">{email.subject}</span>
+                </button>
+              ))
+            )}
+          </div>
 
           <div className="sidebar-legend">
             <div className="legend-item">
@@ -210,6 +239,8 @@ export default function App() {
             draftError={draftErrors[selectedId]  ?? null}
             onDraft={() => selectedEmail && requestDraft(selectedEmail)}
             onDraftChange={(field, value) => updateDraft(selectedId, field, value)}
+            isSent={!!sentIds[selectedId]}
+            onSend={() => selectedId && markSent(selectedId)}
           />
         </div>
 

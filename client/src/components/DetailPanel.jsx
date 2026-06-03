@@ -21,6 +21,7 @@ export function DetailPanel({
   email,
   insight, quoting, quoteError,
   draft, drafting, draftError, onDraft, onDraftChange,
+  isSent, onSend,
 }) {
   if (!email) {
     return (
@@ -72,10 +73,16 @@ export function DetailPanel({
           <button
             className="detail-draft-btn"
             onClick={onDraft}
-            disabled={drafting}
+            disabled={drafting || isSent}
           >
             {drafting ? 'Drafting…' : hasDraft ? 'Regenerate Draft' : 'Draft Reply'}
           </button>
+          {hasDraft && !isSent && (
+            <button className="detail-send-btn" onClick={onSend}>
+              Send
+            </button>
+          )}
+          {isSent && <span className="detail-sent-label">Sent</span>}
           {draftError && <span className="draft-error">{draftError}</span>}
         </div>
 
