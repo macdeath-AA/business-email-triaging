@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { inbox, customersRaw, marshallNotes, servicesDoc } from './data.js'
+import { inbox, customersRaw, marshallNotes, servicesDoc, customerLookup } from './data.js'
 
 const anthropic = new Anthropic()
 
@@ -92,7 +92,13 @@ ${email.body}`,
     `  tokens — in:${usage.input_tokens} (cached:${usage.cache_read_input_tokens ?? 0}) out:${usage.output_tokens}`
   )
 
-  return { email_id: email.id, ...call.input }
+  const senderEmail = email.from.email?.toLowerCase() ?? ''
+  const senderName  = email.from.name?.toLowerCase() ?? ''
+  const is_existing_customer =
+    (senderEmail && customerLookup.emails.has(senderEmail)) ||
+    (senderName  && customerLookup.names.has(senderName))
+
+  return { email_id: email.id, ...call.input, is_existing_customer }
 }
 
 export async function* triageEmails() {
