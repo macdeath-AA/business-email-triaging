@@ -102,7 +102,7 @@ ${email.body}`,
 }
 
 export async function* triageEmails() {
-  for (const email of inbox.slice(0, 10)) {
+  for (const email of inbox.slice(0, 100)) {
     console.log(`\nTriaging ${email.id}: "${email.subject}"`)
     const result = await triageEmail(email)
     const full = {
