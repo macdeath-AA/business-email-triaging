@@ -7,11 +7,11 @@ This agentic inbox dashboard processes emails through Claude AI, classifies ever
 ## Features
 
 - **Streaming triage**: classifies up to 100 emails on load via SSE; results render as they arrive
-- **Quote Agent** — auto-generates insights for Emergency, Quote, and VIP emails on open; includes animal type, recommended service, price range, applicable discounts, and seasonal flags
-- **Draft replies** — one-click drafts written in Skye's voice, informed by the insight card when available
-- **Ready to Send** — sidebar section tracking emails with generated drafts; clicking jumps straight to the draft
-- **Existing customer detection** — senders matched against `customers.csv` at startup; shown in green throughout the UI
-- **VIP and blocklist awareness** — Marshall's notes are embedded in every Claude call as cached context
+- **Quote Agent** : auto-generates insights for Emergency, Quote, and VIP emails on open; includes animal type, recommended service, price range, applicable discounts, and seasonal flags
+- **Draft replies** : one-click drafts written in Skye's voice, informed by the insight card when available
+- **Ready to Send** : sidebar section tracking emails with generated drafts; clicking jumps straight to the draft
+- **Existing customer detection** : senders matched against `customers.csv` at startup; shown in green throughout the UI
+- **VIP and blocklist awareness** : Marshall's notes are embedded in every Claude call as cached context
 
 ## Setup
 
