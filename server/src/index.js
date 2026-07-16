@@ -1,8 +1,10 @@
 import express from 'express'
 import cors from 'cors'
+import { google } from 'googleapis'
 import { triageEmails } from './triage.js'
 import { draftReply } from './draft.js'
 import { generateQuote } from './quote.js'
+import { getTokensFromCode, saveTokens, getAuthorizedClient } from './auth.js'
 
 const app = express()
 const PORT = 3001
@@ -56,6 +58,49 @@ app.post('/api/draft', async (req, res) => {
     res.json(draft)
   } catch (err) {
     console.error('Draft error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.get('/oauth2callback', async (req, res) => {
+  const { code } = req.query
+  if (!code) {
+    return res.status(400).send('Missing code')
+  }
+  try {
+    const tokens = await getTokensFromCode(code)
+    saveTokens(tokens)
+    res.send('Gmail connected and tokens saved.')
+  } catch (err) {
+    console.error('OAuth callback error:', err)
+    res.status(500).send('Failed to exchange code for tokens')
+  }
+})
+
+app.get('/api/gmail/test', async (_req, res) => {
+  const auth = getAuthorizedClient()
+  if (!auth) {
+    return res.status(401).json({ error: 'Not connected to Gmail yet' })
+  }
+  try {
+    const gmail = google.gmail({ version: 'v1', auth })
+    const { data } = await gmail.users.messages.list({ userId: 'me', maxResults: 5 })
+    const messages = data.messages ?? []
+    const subjects = await Promise.all(
+      messages.map(async ({ id }) => {
+        const msg = await gmail.users.messages.get({
+          userId: 'me',
+          id,
+          format: 'metadata',
+          metadataHeaders: ['Subject'],
+        })
+        const subjectHeader = msg.data.payload.headers.find((h) => h.name === 'Subject')
+        return subjectHeader ? subjectHeader.value : '(no subject)'
+      })
+    )
+    res.json({ subjects })
+  } catch (err) {
+    console.error('Gmail test error:', err)
     res.status(500).json({ error: err.message })
   }
 })

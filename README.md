@@ -13,6 +13,10 @@ This agentic inbox dashboard processes emails through Claude AI, classifies ever
 - **Existing customer detection** : senders matched against `customers.csv` at startup; shown in green throughout the UI
 - **VIP and blocklist awareness** : Marshall's notes are embedded in every Claude call as cached context
 
+## Gmail Integration (in progress)
+
+Initial Gmail OAuth connection is working: the server can authenticate against a real Gmail account and pull live messages via the Gmail API (`server/src/auth.js`, read-only scope). The inbox dashboard itself still runs against the static `data/inbox.json` mock data — wiring live Gmail messages into the triage flow is the next step.
+
 ## Setup
 
 Requirements: Node.js 20+, an Anthropic API key.
@@ -22,10 +26,12 @@ Requirements: Node.js 20+, an Anthropic API key.
 npm install
 ```
 
-Create `server/.env.example` with:
+Create `server/.env` with:
 
 ```
 ANTHROPIC_API_KEY=your_key_here
+GOOGLE_CLIENT_ID=google_client_id
+GOOGLE_CLIENT_SECRET=paste_client_secret
 ```
 
 ```bash
@@ -57,6 +63,7 @@ Backend: `http://localhost:3001`
 - SSE streaming means triage and action are fully decoupled. User can open an email, generate an insight card, and draft a reply while the rest of the inbox is still being processed in the background
 
 ## Future work
+- Replace mock `inbox.json` with live Gmail data in the triage flow
 - Editable categories
 - Urgency scoring
 - Use a better model
